@@ -148,34 +148,6 @@ async function updateRow(values, rowId) {
   }
 }
 
-const values = [
-  {
-    school: "UCLA",
-    program: "MEng",
-    status: "Draft",
-    ps: {
-      displayText: "PS.pdf",
-      url: "https://drive.google.com/file/d/1clF8uTWaqc_NEs8UE0hJBr4vwYiEn7aJ/view?usp=drivesdk",
-    },
-    sop: {
-      displayText: "SoP.pdf",
-      url: "https://drive.google.com/file/d/1bH_cnfVSVh7DLwqEUbh_QUUo1kTVbGO-/view?usp=drivesdk",
-    },
-    email: {
-      displayText: "1 UNREAD",
-      url: "https://google.com/",
-    },
-  },
-  {
-    school: "UIUC",
-    program: "MCS",
-    status: "Draft",
-    ps: null,
-    sop: null,
-    email: "0 UNREAD",
-  },
-];
-
 async function handleNotionUpdate(rowsData) {
   const mapping = await findPageIdMapping();
 
