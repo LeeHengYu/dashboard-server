@@ -31,86 +31,107 @@ async function findPageIdMapping() {
 }
 
 function convertProperties(values) {
+  // Converts the input dict to Notion API format
   const properties = {};
-  // Program - rich_text
-  if (values.program !== undefined) {
-    properties.Program = {
-      rich_text: values.program
-        ? [
-            {
-              type: "text",
-              text: {
-                content: values.program,
-              },
+  // Program - rich_text (required)
+  properties.Program = {
+    rich_text: values.program
+      ? [
+          {
+            type: "text",
+            text: {
+              content: values.program,
             },
-          ]
-        : [],
-    };
-  }
+          },
+        ]
+      : [],
+  };
 
   // Email - rich_text
-  if (values.email !== undefined) {
-    properties.Email = {
-      rich_text: values.email
-        ? [
-            {
-              type: "text",
-              text: {
-                content: values.email,
-              },
+  if (values.email) {
+    if (typeof values.email === "string") {
+      properties.Email = {
+        rich_text: [
+          {
+            type: "text",
+            text: {
+              content: values.email,
             },
-          ]
-        : [],
-    };
+          },
+        ],
+      };
+    } else {
+      // there is displayText and url
+      properties.Email = {
+        rich_text: [
+          {
+            type: "text",
+            text: {
+              content: values.email.displayText || "",
+              link: values.email.url ? { url: values.email.url } : null,
+            },
+          },
+        ],
+      };
+    }
   }
 
   // PS - url
-  if (values.ps !== undefined) {
+  if (values.ps) {
     properties.PS = {
-      url: values.ps || null,
+      url: values.ps.url,
     };
   }
 
   // SoP - url
-  if (values.sop !== undefined) {
+  if (values.sop) {
     properties.SoP = {
-      url: values.sop || null,
+      url: values.sop.url,
     };
   }
 
   // Status - select
-  if (values.status !== undefined) {
+  if (values.status) {
     properties.Status = {
       select: values.status
         ? {
             name: values.status,
           }
-        : null,
+        : undefined,
     };
   }
 
-  // School - title
-  if (values.school !== undefined) {
-    properties.School = {
-      title: values.school
-        ? [
-            {
-              type: "text",
-              text: {
-                content: values.school,
-              },
+  // School - title (required)
+  properties.School = {
+    title: values.school
+      ? [
+          {
+            type: "text",
+            text: {
+              content: values.school,
             },
-          ]
-        : [],
-    };
-  }
+          },
+        ]
+      : [],
+  };
 
   return properties;
 }
 
 async function createRow(values) {
-  // TODO;
-  return null;
+  try {
+    const response = await notion.pages.create({
+      parent: {
+        database_id: process.env.NOTION_DATABASE_ID,
+      },
+      properties: convertProperties(values),
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Error creating Notion row:", error);
+    throw error;
+  }
 }
 
 async function updateRow(values, rowId) {
@@ -127,26 +148,97 @@ async function updateRow(values, rowId) {
   }
 }
 
-async function main() {
-  const values = {
-    school: "MIT",
-    program: "Computer Science",
+const values = [
+  {
+    school: "UCLA",
+    program: "MEng",
     status: "Draft",
-    ps: "https://example.com/personal-statement",
-    sop: "https://example.com/statement-of-purpose",
-    email: "student@example2.com",
-  };
+    ps: {
+      displayText: "PS.pdf",
+      url: "https://drive.google.com/file/d/1clF8uTWaqc_NEs8UE0hJBr4vwYiEn7aJ/view?usp=drivesdk",
+    },
+    sop: {
+      displayText: "SoP.pdf",
+      url: "https://drive.google.com/file/d/1bH_cnfVSVh7DLwqEUbh_QUUo1kTVbGO-/view?usp=drivesdk",
+    },
+    email: {
+      displayText: "1 UNREAD",
+      url: "https://google.com/",
+    },
+  },
+  {
+    school: "UIUC",
+    program: "MCS",
+    status: "Draft",
+    ps: null,
+    sop: null,
+    email: "0 UNREAD",
+  },
+];
 
+async function handleNotionUpdate(rowsData) {
   const mapping = await findPageIdMapping();
 
-  try {
-    if (mapping[values.school]) {
-      const result = await updateRow(values, mapping[values.school]);
-    } else {
-      // TODO
+  const results = [];
+
+  for (const rowData of rowsData) {
+    try {
+      let result = null;
+      if (mapping[rowData.school]) {
+        console.log(`Updating existing row for: ${rowData.school}`);
+        result = await updateRow(rowData, mapping[rowData.school]);
+      } else {
+        console.log(`Creating new row for: ${rowData.school}`);
+        result = await createRow(rowData);
+      }
+
+      results.push({
+        success: true,
+        school: rowData.school,
+        action: mapping[rowData.school] ? "updated" : "created",
+        result: result,
+      });
+
+      console.log(`Successfully processed ${rowData.school}`);
+    } catch (error) {
+      console.error(`Error processing ${rowData.school}:`, error);
+      results.push({
+        success: false,
+        school: rowData.school,
+        error: error.message,
+      });
     }
-    console.log(result);
-  } catch (error) {
-    // console.error(error);
   }
+
+  const successful = results.filter((r) => r.success);
+  const failed = results.filter((r) => !r.success);
+
+  console.log(
+    `\nSummary: ${successful.length} successful, ${failed.length} failed`
+  );
+
+  if (failed.length > 0) {
+    console.log(
+      "Failed schools:",
+      failed.map((f) => f.school)
+    );
+  }
+
+  return results;
+}
+
+// Helper function for debug
+
+async function query() {
+  const response = await notion.databases.query({
+    database_id: process.env.NOTION_DATABASE_ID,
+    // filter: {
+    //   property: "School",
+    //   rich_text: {
+    //     equals: "UIUC",
+    //   },
+    // },
+  });
+
+  console.log(response.results[0].properties);
 }
