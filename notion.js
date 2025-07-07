@@ -242,3 +242,5 @@ async function query() {
 
   console.log(response.results[0].properties);
 }
+
+module.exports = { handleNotionUpdate };

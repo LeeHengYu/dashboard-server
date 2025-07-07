@@ -1,15 +1,16 @@
 const express = require("express");
 const app = express();
 
-const PORT = 3000;
+const { handleNotionUpdate } = require("./notion");
 
+const PORT = 3000;
 app.use(express.json());
 
 app.get("/", (req, res) => {
   res.send("Root endpoint.");
 });
 
-app.post("/update-notion", (req, res) => {
+app.post("/update-notion", async (req, res) => {
   let data = req.body;
 
   if (!Array.isArray(data)) {
@@ -20,7 +21,7 @@ app.post("/update-notion", (req, res) => {
         .status(400)
         .json({ error: "Expected an array of data in the body request." });
     }
-  }
+  } // package into an array if not already
 
   const invalidRows = data.filter((row) => !row.school || !row.program);
   if (invalidRows.length > 0) {
@@ -31,11 +32,10 @@ app.post("/update-notion", (req, res) => {
     });
   }
 
+  const updateResult = await handleNotionUpdate(data);
+
   res.status(200).json({
-    message: `Updated ${data.length} ${
-      data.length > 1 ? "rows" : "row"
-    } successfully.`,
-    data: data,
+    res: `Successfully processed ${updateResult.length} request(s).`,
   });
 });
 
